@@ -11,7 +11,7 @@ def generate_qr_code_image(
     error_correction: str = 'H',
     target_size: tuple[int, int] = (64, 64),
 ) -> np.ndarray:
-    """Versiyon 10 QR üretir ve 64x64 merkeze sabitler."""
+    """Generates a Version 10 QR code and centers it on a 64x64 canvas."""
     ecc_levels = {
         "L": qrcode.constants.ERROR_CORRECT_L,
         "M": qrcode.constants.ERROR_CORRECT_M,
@@ -31,7 +31,7 @@ def generate_qr_code_image(
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("L")
     qr_array = np.array(qr_img) # 57x57
 
-    # 64x64 Beyaz zemine yerleştir
+    # Place on a 64x64 white background
     final_qr = np.ones(target_size, dtype=np.uint8) * 255
     y_off = (target_size[0] - qr_array.shape[0]) // 2
     x_off = (target_size[1] - qr_array.shape[1]) // 2
@@ -40,43 +40,43 @@ def generate_qr_code_image(
     return (final_qr < 127).astype(np.uint8)
 
 def decode_qr_code(qr_array: np.ndarray) -> Optional[str]:
-    """Zırhlı Decode: Görüntüyü temizler, büyütür ve çerçeve ekler."""
+    """Robust Decode: Cleans the image, upscales it, and adds a border."""
     if qr_array is None:
         return None
 
-    # 1. 0-255 uint8 formatına çevir
+    # 1. Convert to 0-255 uint8 format
     img = (qr_array * 255).astype(np.uint8)
     
-    # 2. Boyutu devasa yap (512x512) - Keskinliği korumak için NEAREST
+    # 2. Upscale to large size (512x512) - NEAREST to preserve sharpness
     img_resized = cv2.resize(img, (512, 512), interpolation=cv2.INTER_NEAREST)
     
-    # 3. GENİŞ Beyaz Çerçeve Ekle (Quiet Zone simülasyonu)
-    # Telefonun okumasını sağlayan kritik boşluk
+    # 3. Add WIDE white border (Quiet Zone simulation)
+    # Critical padding that enables phone scanning
     img_padded = cv2.copyMakeBorder(
         img_resized, 100, 100, 100, 100, 
         cv2.BORDER_CONSTANT, value=[255, 255, 255]
     )
 
-    # 4. Binary Threshold (Gri pikselleri yok et)
+    # 4. Binary threshold (eliminate gray pixels)
     _, img_binary = cv2.threshold(img_padded, 128, 255, cv2.THRESH_BINARY)
 
-    # 5. Farklı varyasyonları dene
+    # 5. Try different variations
     def try_decode(image):
         decoded = pyzbar_decode(image)
         if decoded:
             return decoded[0].data.decode('utf-8')
         return None
 
-    # Normal deneme
+    # Normal attempt
     res = try_decode(img_binary)
     if res: return res
 
-    # Hafif yumuşatılmış deneme (Bazı kütüphaneler keskin pikselleri sevmez)
+    # Slightly blurred attempt (some libraries dislike sharp pixels)
     img_blur = cv2.GaussianBlur(img_binary, (3,3), 0)
     res = try_decode(img_blur)
     if res: return res
 
-    # Görüntüyü ters çevirip deneme
+    # Inverted image attempt
     img_inv = cv2.bitwise_not(img_binary)
     res = try_decode(img_inv)
     

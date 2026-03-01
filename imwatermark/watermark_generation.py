@@ -1,6 +1,6 @@
 """
-Damga Üretme Modülü (Watermark Generation Module)
-Bu modül, kullanıcı bilgilerini QR kod formatında damga olarak üretir.
+Watermark Generation Module
+This module generates user information as a watermark in QR code format.
 """
 
 from typing import Dict
@@ -12,57 +12,57 @@ from .qr_utils import generate_qr_code_image
 
 class WatermarkGenerator:
     """
-    QR kod tabanlı damga üretici sınıfı.
-    Kullanıcı bilgilerini, üretim tarihini ve YZ modelini içeren
-    metaveri dizisini 64x64 boyutunda QR koda dönüştürür.
+    QR code-based watermark generator class.
+    Converts the metadata string containing user information, production date,
+    and AI model into a 64x64 QR code.
     """
     
     def __init__(self, version: int = 10, error_correction: str = 'H'):
         """
-        WatermarkGenerator sınıfını başlatır.
+        Initializes the WatermarkGenerator class.
         
         Args:
-            version: QR kod versiyonu (varsayılan: 10, 57x57 modül)
-            error_correction: Hata düzeltme seviyesi ('L', 'M', 'Q', 'H')
-                             varsayılan: 'H' (%30 hata toleransı)
+            version: QR code version (default: 10, 57x57 modules)
+            error_correction: Error correction level ('L', 'M', 'Q', 'H')
+                             default: 'H' (30% error tolerance)
         """
         self.version = version
         self.error_correction = error_correction
         self.target_size = (64, 64)
         
-        self.ecc_levels = None  # qr_utils içinde yönetiliyor
+        self.ecc_levels = None  # Managed inside qr_utils
 
     def create_metadata_string(self, user_info: Dict[str, str]) -> str:
         """
-        Kullanıcı bilgilerinden metaveri dizisi oluşturur.
+        Creates a metadata string from user information.
         
         Args:
-            user_info: Kullanıcı bilgilerini içeren dictionary
-                     - 'producer': Üretici adı-soyadı (≈50 karakter)
-                     - 'date': Üretim tarihi (≈10 karakter)
-                     - 'ai_model': Kullanılan YZ modeli (≈50 karakter)
+            user_info: Dictionary containing user information
+                     - 'producer': Producer full name (~50 characters)
+                     - 'date': Production date (~10 characters)
+                     - 'ai_model': AI model used (~50 characters)
         
         Returns:
-            Metaveri dizisi (string)
+            Metadata string
         """
         producer = user_info.get('producer', '')
         date = user_info.get('date', '')
         ai_model = user_info.get('ai_model', '')
         
-        # Metaveri formatı: producer|date|ai_model
+        # Metadata format: producer|date|ai_model
         metadata = f"{producer}|{date}|{ai_model}"
         
         return metadata
     
     def generate_qr_code(self, metadata: str) -> np.ndarray:
         """
-        Metaveri dizisinden QR kod oluşturur.
+        Generates a QR code from the metadata string.
         
         Args:
-            metadata: Gömülecek metaveri dizisi
+            metadata: Metadata string to be embedded
         
         Returns:
-            64x64 boyutunda binary (0-1) numpy array
+            64x64 binary (0-1) numpy array
         """
         qr_array_binary = generate_qr_code_image(
             metadata=metadata,
@@ -74,18 +74,18 @@ class WatermarkGenerator:
     
     def generate_watermark(self, user_info: Dict[str, str]) -> np.ndarray:
         """
-        Kullanıcı bilgilerinden damga (watermark) üretir.
+        Generates a watermark from user information.
         
         Args:
-            user_info: Kullanıcı bilgilerini içeren dictionary
+            user_info: Dictionary containing user information
         
         Returns:
-            64x64 boyutunda binary watermark array
+            64x64 binary watermark array
         """
-        # Metaveri dizisi oluştur
+        # Create metadata string
         metadata = self.create_metadata_string(user_info)
         
-        # QR kod oluştur
+        # Generate QR code
         watermark = self.generate_qr_code(metadata)
         
         return watermark
@@ -93,16 +93,15 @@ class WatermarkGenerator:
     @staticmethod
     def watermark_to_bit_sequence(watermark: np.ndarray) -> np.ndarray:
         """
-        Watermark matrisini bit dizisine dönüştürür.
+        Converts the watermark matrix into a bit sequence.
         
         Args:
-            watermark: 64x64 boyutunda binary watermark array
+            watermark: 64x64 binary watermark array
         
         Returns:
-            4096 bitlik (64x64) bit dizisi
+            4096-bit (64x64) bit sequence
         """
-        # Satır-sütun sırasına göre düzleştir
+        # Flatten in row-major (C) order
         bit_sequence = watermark.flatten()
         
         return bit_sequence
-
