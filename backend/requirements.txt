@@ -12,6 +12,7 @@ opencv-python-headless
 PyWavelets
 scipy
 pyzbar
-passlib[bcrypt]
+bcrypt
 python-jose[cryptography]
 email-validator
+google-auth

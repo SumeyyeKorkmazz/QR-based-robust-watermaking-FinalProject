@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import shutil
 import uuid
-import os
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from pydantic import BaseModel
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "122858962930-068npvp8mfm1queehm4ouf9ijbga49s2.apps.googleusercontent.com")
 
 from database import engine, get_db, Base
 from models import User, GeneratedImage
@@ -64,6 +68,43 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def read_users_me(current_user: User = Depends(auth.get_current_user)):
     return current_user
 
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
+@app.post("/api/auth/google", response_model=schemas.Token)
+def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
+    """
+    Google OAuth2 token'ını doğrular. Kullanıcı yoksa otomatik kayıt eder.
+    Her iki durumda da kendi JWT token'ımızı döner.
+    """
+    try:
+        # Google token'ını doğrula
+        id_info = id_token.verify_oauth2_token(
+            payload.credential,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=10
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Geçersiz Google token: {str(e)}")
+
+    email = id_info.get("email")
+    full_name = id_info.get("name", "")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Google hesabından e-posta alınamadı.")
+
+    # Kullanıcı var mı kontrol et, yoksa oluştur
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(email=email, full_name=full_name, hashed_password=None)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    access_token = auth.create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @app.get("/api/gallery", response_model=list[schemas.ImageResponse])
 def get_gallery(current_user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     images = db.query(GeneratedImage).filter(GeneratedImage.owner_id == current_user.id).all()
@@ -88,22 +129,14 @@ async def generate_image(
     prompt: str = Form(...),
     model_version: str = Form(...),
     quality_level: str = Form(...),
-    db: Session = Depends(get_db)
-    # current_user: User = Depends(auth.get_current_user) # Temporarily disabled for UI testing
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth.get_current_user)
 ):
     """
-    Şimdilik auth yok, kullanıcıya göre üretim yapılacak.
-    Gerçek yapay zeka (DALL-E veya Stable Diffusion) ile resim üretilir.
+    Gerçek yapay zeka (DALL-E veya Stable Diffusion) ile resim üretir ve QR watermark gömer.
+    JWT token ile korunan endpoint — giriş yapmış kullanıcılar erişebilir.
     """
     try:
-        # Geçici olarak test için bir kullanıcı alıyoruz veya oluşturuyoruz
-        current_user = db.query(User).first()
-        if not current_user:
-            current_user = User(email="test@tracemark.com", full_name="Test User", hashed_password="mock")
-            db.add(current_user)
-            db.commit()
-            db.refresh(current_user)
-            
         unique_id = str(uuid.uuid4())[:8]
         user_name = current_user.full_name or current_user.email
         date_str = datetime.utcnow().strftime('%d.%m.%Y | %H:%M')
@@ -201,4 +234,4 @@ async def get_image(filename: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -2,10 +2,11 @@
 __pycache__/
 *.py[codz]
 *$py.class
-
+.idea
+.venv
 # C extensions
 *.so
-
+backend/backend.env
 # Distribution / packaging
 .Python
 build/
