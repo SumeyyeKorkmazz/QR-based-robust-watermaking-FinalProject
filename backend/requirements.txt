@@ -16,3 +16,6 @@ bcrypt
 python-jose[cryptography]
 email-validator
 google-auth
+pytz
+huggingface-hub
+pillow

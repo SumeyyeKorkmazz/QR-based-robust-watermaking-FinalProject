@@ -5,6 +5,10 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from fastapi import HTTPException
 
+from huggingface_hub import InferenceClient
+import uuid
+import os
+
 # Load environment variables
 load_dotenv()
 
@@ -49,22 +53,31 @@ class AIGenerator:
 
     def generate_stable_diffusion(self, prompt: str) -> str:
         if not self.hf_key or self.hf_key == "your_huggingface_api_key_here":
-            raise HTTPException(status_code=500, detail="HuggingFace API anahtarı ayarlanmamış. Lütfen .env dosyasını kontrol edin.")
-            
-        API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
-        headers = {"Authorization": f"Bearer {self.hf_key}"}
-        
+            raise HTTPException(status_code=500,
+                                detail="HuggingFace API anahtarı ayarlanmamış. Lütfen .env dosyasını kontrol edin.")
+
         try:
-            response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
-            if response.status_code != 200:
-                raise Exception(f"API Hatası: {response.text}")
-                
+            # 1. Yeni Router mimarisi ile istemci (client) oluştur
+            client = InferenceClient(
+                provider="nscale",
+                api_key=self.hf_key
+            )
+
+            # 2. Kütüphane üzerinden resmi üret (eski requests.post işleminin modern hali)
+            image = client.text_to_image(
+                prompt,
+                model="stabilityai/stable-diffusion-xl-base-1.0"
+            )
+
+            # 3. Eski dosya isimleme ve kaydetme mantığını koruyoruz
             filename = f"temp_sd_{uuid.uuid4().hex[:8]}.png"
             filepath = os.path.join(self.upload_dir, filename)
-            
-            with open(filepath, 'wb') as f:
-                f.write(response.content)
+
+            # Üretilen Pillow nesnesini (resmi) bilgisayara kaydet
+            image.save(filepath)
+
             return filepath
+
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Stable Diffusion üretimi başarısız: {str(e)}")
 

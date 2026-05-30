@@ -139,7 +139,7 @@ async def generate_image(
     try:
         unique_id = str(uuid.uuid4())[:8]
         user_name = current_user.full_name or current_user.email
-        date_str = datetime.utcnow().strftime('%d.%m.%Y | %H:%M')
+        date_str = datetime.now().strftime('%d.%m.%Y | %H:%M')
         
         # Gerçek Yapay Zeka ile Görsel Üretimi
         cover_path = ai_generator.generate_image(prompt=prompt, model_name=model_version)
@@ -199,19 +199,26 @@ async def extract_metadata(file: UploadFile = File(...)):
             os.remove(temp_path)
             
         if metadata_str:
-            # ornek QR verisi: "sumeyyekorkmaz|19.02.2026|Stable Diffusion"
-            parts = metadata_str.split('|')
-            producer = parts[0] if len(parts) > 0 else "Bilinmiyor"
-            date = parts[1] if len(parts) > 1 else "Bilinmiyor"
-            model = parts[2] if len(parts) > 2 else "Bilinmiyor"
-            
+            # QR verisi formatı: "creator|date|time|model"
+            # Örnek: "sued|30.05.2026 | 14:49|Stable Diffusion"
+            # strip() ile baştaki/sondaki boşlukları temizle
+            parts = [p.strip() for p in metadata_str.split('|')]
+
+            creator  = parts[0] if len(parts) > 0 else "Bilinmiyor"
+            date_str = parts[1] if len(parts) > 1 else "Bilinmiyor"
+            time_str = parts[2] if len(parts) > 2 else ""
+            model    = parts[3] if len(parts) > 3 else (parts[2] if len(parts) > 2 else "Bilinmiyor")
+
+            # Tarih ve saati birleştir (saat boşsa sadece tarih)
+            datetime_str = f"{date_str} {time_str}".strip() if time_str else date_str
+
             return {
                 "status": "success",
                 "verified": True,
                 "data": {
                     "raw": metadata_str,
-                    "creator": producer,
-                    "date": date,
+                    "creator": creator,
+                    "date": datetime_str,
                     "model": model
                 }
             }

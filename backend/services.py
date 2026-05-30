@@ -44,19 +44,46 @@ class WatermarkService:
         cv2.imwrite(output_watermarked_path, cv2.cvtColor(watermarked_img, cv2.COLOR_RGB2BGR))
         return output_watermarked_path
 
-    def extract_and_decode(self, watermarked_img_path: str, wm_rows: int = 64, wm_cols: int = 64):
+    def extract_and_decode(self, watermarked_img_path: str):
         """
         Damgayi gorselden cikartir ve QR icerigini okur.
+        wm_rows ve wm_cols embedding ile aynı formülle hesaplanır.
         """
-        # Goruntuyu RGB olarak oku (imwatermark embedding/extraction RGB bekler)
+        # Goruntuyu RGB olarak oku
         img = cv2.imread(watermarked_img_path)
         if img is None:
             raise ValueError("Görüntü bulunamadı veya okunamadı.")
-            
+
         watermarked_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
+
+        # Embedding ile aynı mantıkla wm_rows/wm_cols hesapla:
+        # 1. Görüntüyü 8'e bölen boyuta kırp (embedding de yapıyor)
+        rows, cols, _ = watermarked_img.shape
+        new_rows = (rows // 8) * 8
+        new_cols = (cols // 8) * 8
+        if new_rows != rows or new_cols != cols:
+            watermarked_img = cv2.resize(watermarked_img, (new_cols, new_rows))
+
+        # 2. YCbCr → Y
+        import pywt
+        img_ycbcr = cv2.cvtColor(watermarked_img, cv2.COLOR_RGB2YCrCb)
+        Y = img_ycbcr[:, :, 0].astype(np.float32)
+
+        # 3. DWT boyutu
+        coeffs = pywt.dwt2(Y, 'haar')
+        LL, _ = coeffs
+        sub_rows, sub_cols = LL.shape
+
+        # 4. Embedding ile aynı formül
+        block_size = 4
+        wm_rows = sub_rows // block_size
+        wm_cols = sub_cols // block_size
+
+        print(f"[Extract] Image: {new_rows}x{new_cols} → LL: {sub_rows}x{sub_cols} → WM: {wm_rows}x{wm_cols}")
+
         extracted_watermark = watermark_extraction(
             watermarked_img, wm_rows, wm_cols, self.alpha, self.beta
         )
         decoded_metadata = decode_qr_code(extracted_watermark)
         return decoded_metadata
+
