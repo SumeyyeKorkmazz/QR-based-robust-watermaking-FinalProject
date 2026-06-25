@@ -63,10 +63,10 @@ class AIGenerator:
                 api_key=self.hf_key
             )
 
-            # 2. Kütüphane üzerinden resmi üret (eski requests.post işleminin modern hali)
+            # 2. FLUX.1-schnell modeli nscale tarafından desteklenmektedir (Apache 2.0)
             image = client.text_to_image(
                 prompt,
-                model="stabilityai/stable-diffusion-xl-base-1.0"
+                model="black-forest-labs/FLUX.1-schnell"
             )
 
             # 3. Eski dosya isimleme ve kaydetme mantığını koruyoruz
